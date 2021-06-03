@@ -26,8 +26,12 @@ class StockTradingEnv(gym.Env):
     def __init__(self, df):
         super(StockTradingEnv, self).__init__()
         self.df = df
+        self.length_data = 10
         self.reward_range = (0, MAX_ACCOUNT_BALANCE)
-        # Actions of the format Buy x%, Sell x%, Hold, etc.
+        self.lot = 0.1
+        self.gain = 10
+        self.loss = 20
+        # Actions of the format Buy curr, Sell curr, Hold, etc.
         self.action_space = spaces.Box(
             low=np.array([0, 0]), high=np.array([3, 1]), dtype=np.float16)
         # Prices contains the OHCL values for the last five prices
@@ -39,38 +43,39 @@ class StockTradingEnv(gym.Env):
         self.balance = INITIAL_ACCOUNT_BALANCE
         self.net_worth = INITIAL_ACCOUNT_BALANCE
         self.max_net_worth = INITIAL_ACCOUNT_BALANCE
-        self.shares_held = 0
+        self.pos_opened = []
+        self.number_open_pos = 0
         self.cost_basis = 0
-        self.total_shares_sold = 0
+        self.positions_closed = 0
         self.total_sales_value = 0
 
         # Set the current step to a random point within the data frame
-        self.current_step = random.randint(0, len(self.df.loc[:, 'Open'].values) - 6)
+        self.current_step = random.randint(0, len(self.df.loc[:, 'Open'].values) - self.length_data - 1)
         return self._next_observation()
 
     def _next_observation(self):
         # Get the data points for the last 5 days and scale to between 0-1
         frame = np.array([
             self.df.loc[self.current_step: self.current_step +
-                                           5, 'Open'].values,
+                                           self.length_data, 'Open'].values,
             self.df.loc[self.current_step: self.current_step +
-                                           5, 'High'].values,
+                                           self.length_data, 'High'].values,
             self.df.loc[self.current_step: self.current_step +
-                                           5, 'Low'].values,
+                                           self.length_data, 'Low'].values,
             self.df.loc[self.current_step: self.current_step +
-                                           5, 'Close'].values,
+                                           self.length_data, 'Close'].values,
             self.df.loc[self.current_step: self.current_step +
-                                           5, 'Volume'].values,
+                                           self.length_data, 'Volume'].values / MAX_NUM_SHARES,
         ])
 
         # Append additional data and scale each value to between 0-1
         obs = np.append(frame, [[
-            self.balance,
-            self.max_net_worth,
-            self.shares_held,
+            self.balance / MAX_ACCOUNT_BALANCE,
+            self.max_net_worth / MAX_ACCOUNT_BALANCE,
+            self.shares_held / MAX_NUM_SHARES,
             self.cost_basis,
-            self.total_shares_sold,
-            self.total_sales_value,
+            self.total_shares_sold / MAX_NUM_SHARES,
+            self.total_sales_value / MAX_NUM_SHARES,
         ]], axis=0)
 
         return obs
@@ -110,6 +115,13 @@ class StockTradingEnv(gym.Env):
             self.balance -= additional_cost
             self.cost_basis = (prev_cost + additional_cost) / (self.shares_held + shares_bought)
             self.shares_held += shares_bought
+
+            trade = {'entry': current_price, 'position': action_type, 'lot': self.lot,
+                     'SL': current_price - self.loss / 10000,
+                     'TP': current_price + self.gain / 10000, 'index': self.number_open_pos}
+            self.pos_opened.append(trade)
+
+
         elif action_type < 2:
             # Sell amount % of shares held
             shares_sold = self.shares_held * amount
@@ -117,6 +129,11 @@ class StockTradingEnv(gym.Env):
             self.shares_held -= shares_sold
             self.total_shares_sold += shares_sold
             self.total_sales_value += shares_sold * current_price
+
+            trade = {'entry': current_price, 'position': action_type, 'lot': self.lot,
+                     'SL': current_price + self.loss / 10000,
+                     'TP': current_price - self.gain / 10000, 'index': self.number_open_pos}
+            self.pos_opened.append(trade)
 
         self.netWorth = self.balance + self.shares_held * current_price
 
