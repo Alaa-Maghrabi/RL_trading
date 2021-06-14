@@ -31,6 +31,11 @@ class StockTradingEnv(gym.Env):
         self.lot = 0.1
         self.gain = 10
         self.loss = 20
+
+        # Save Open trades in a list with indexes of how many open trades
+        self.Open_trade = []
+        self.number_open_trades = 0
+
         # Actions of the format Buy curr, Sell curr, Hold, etc.
         self.action_space = spaces.Box(
             low=np.array([0, 0]), high=np.array([3, 1]), dtype=np.float16)
@@ -80,6 +85,98 @@ class StockTradingEnv(gym.Env):
 
         return obs
 
+    def closing_position(self):
+        i = 0
+        while i < self.number_open_trades:
+            if self.Open_trade[i]['position'] == 1:
+                # Check first if the min is below the SL just to be sure that during the movement of the candle the SL was
+                # not touched
+                if self.row['Low'] <= self.Open_trade[i]['SL']:
+                    self.gains += (self.Open_trade[i]['SL'] - self.Open_trade[i]['entry']) * 10000
+                    # print('Position: BUY \n' + 'Open:  ' + str(self.Open_trade[i]['entry']) + '\nClose: ' + str(
+                    #    self.row['Low']) + '\nProfit: ' + str(
+                    #    (self.Open_trade[i]['SL'] - self.Open_trade[i]['entry']) * 10000) + '\n Gains: ' + str(self.gains) + '\n')
+                    if (self.Open_trade[i]['SL'] - self.Open_trade[i]['entry']) > 0:
+                        self.Pos_counter += 1
+                    else:
+                        self.Neg_counter += 1
+                    del self.Open_trade[i]
+                    self.number_open_trades -= 1
+                    self.Open_counter -= 1
+                    self.Closed_counter += 1
+
+                elif self.row['Close'] <= self.Open_trade[i]['SL']:
+                    self.gains += (self.Open_trade[i]['SL'] - self.Open_trade[i]['entry']) * 10000
+                    # print('Position: BUY \n' + 'Open:  ' + str(self.Open_trade[i]['entry']) + '\nClose: ' + str(
+                    #     self.row['Close']) + '\nProfit: ' + str(
+                    #     (self.Open_trade[i]['SL'] - self.Open_trade[i]['entry']) * 10000) + '\n Gains: ' + str(self.gains) + '\n')
+                    if (self.Open_trade[i]['SL'] - self.Open_trade[i]['entry']) > 0:
+                        self.Pos_counter += 1
+                    else:
+                        self.Neg_counter += 1
+                    del self.Open_trade[i]
+                    self.number_open_trades -= 1
+                    self.Open_counter -= 1
+                    self.Closed_counter += 1
+
+                elif self.row['Close'] >= self.Open_trade[i]['TP']:
+                    self.gains += (self.Open_trade[i]['TP'] - self.Open_trade[i]['entry']) * 10000
+                    # print('Position: BUY \n' + 'Open:  ' + str(self.Open_trade[i]['entry']) + '\nClose: ' + str(
+                    #     self.Open_trade[i]['TP']) + '\nProfit: ' + str(
+                    #     (self.Open_trade[i]['TP'] - self.Open_trade[i]['entry']) * 10000) + '\n Gains: ' + str(self.gains) + '\n')
+                    if (self.Open_trade[i]['TP'] - self.Open_trade[i]['entry']) > 0:
+                        self.Pos_counter += 1
+                    else:
+                        self.Neg_counter += 1
+                    del self.Open_trade[i]
+                    self.number_open_trades -= 1
+                    self.Open_counter -= 1
+                    self.Closed_counter += 1
+
+            elif self.Open_trade[i]['position'] == -1:
+                if self.row['High'] >= self.Open_trade[i]['SL']:
+                    self.gains += (-self.Open_trade[i]['SL'] + self.Open_trade[i]['entry']) * 10000
+                    # print('Position: SELL \n' + 'Open:  ' + str(self.Open_trade[i]['entry']) + '\nClose: ' + str(
+                    #     self.row['High']) + '\nProfit: ' + str(
+                    #     (-self.Open_trade[i]['SL'] + self.Open_trade[i]['entry']) * 10000) + '\n Gains: ' + str(self.gains) + '\n')
+                    if (-self.Open_trade[i]['SL'] + self.Open_trade[i]['entry']) > 0:
+                        self.Pos_counter += 1
+                    else:
+                        self.Neg_counter += 1
+                    del self.Open_trade[i]
+                    self.number_open_trades -= 1
+                    self.Open_counter -= 1
+                    self.Closed_counter += 1
+
+                elif self.row['Close'] >= self.Open_trade[i]['SL']:
+                    self.gains += (-self.Open_trade[i]['SL'] + self.Open_trade[i]['entry']) * 10000
+                    # print('Position: SELL \n' + 'Open:  ' + str(self.Open_trade[i]['entry']) + '\n Close: ' + str(
+                    #     self.row['Close']) + '\n Profit: ' + str(
+                    #     (-self.Open_trade[i]['SL'] + self.Open_trade[i]['entry']) * 10000) + '\n Gains: ' + str(self.gains) + '\n')
+                    if (-self.Open_trade[i]['SL'] + self.Open_trade[i]['entry']) > 0:
+                        self.Pos_counter += 1
+                    else:
+                        self.Neg_counter += 1
+                    del self.Open_trade[i]
+                    self.number_open_trades -= 1
+                    self.Open_counter -= 1
+                    self.Closed_counter += 1
+
+                elif self.row['Close'] <= self.Open_trade[i]['TP']:
+                    self.gains += (-self.Open_trade[i]['TP'] + self.Open_trade[i]['entry']) * 10000
+                    # print('Position: SELL \n' + 'Open:  ' + str(self.Open_trade[i]['entry']) + '\n Close: ' + str(
+                    #     self.Open_trade[i]['TP']) + '\n Profit: ' + str(
+                    #     (-self.Open_trade[i]['TP'] + self.Open_trade[i]['entry']) * 10000) + '\n Gains: ' + str(self.gains) + '\n')
+                    if (-self.Open_trade[i]['TP'] + self.Open_trade[i]['entry']) > 0:
+                        self.Pos_counter += 1
+                    else:
+                        self.Neg_counter += 1
+                    del self.Open_trade[i]
+                    self.number_open_trades -= 1
+                    self.Open_counter -= 1
+                    self.Closed_counter += 1
+            i += 1
+
     def step(self, action):
         # Execute one time step within the environment
         self._take_action(action)
@@ -107,33 +204,35 @@ class StockTradingEnv(gym.Env):
         amount = action[1]
 
         if action_type < 1:
-            # Buy amount % of balance in shares
-            total_possible = self.balance / current_price
-            shares_bought = total_possible * amount
-            prev_cost = self.cost_basis * self.shares_held
-            additional_cost = shares_bought * current_price
-            self.balance -= additional_cost
-            self.cost_basis = (prev_cost + additional_cost) / (self.shares_held + shares_bought)
-            self.shares_held += shares_bought
-
             trade = {'entry': current_price, 'position': action_type, 'lot': self.lot,
                      'SL': current_price - self.loss / 10000,
                      'TP': current_price + self.gain / 10000, 'index': self.number_open_pos}
+
+            self.number_open_trades += 1
+            self.Open_counter += 1
+
             self.pos_opened.append(trade)
 
-
         elif action_type < 2:
-            # Sell amount % of shares held
-            shares_sold = self.shares_held * amount
-            self.balance += shares_sold * current_price
-            self.shares_held -= shares_sold
-            self.total_shares_sold += shares_sold
-            self.total_sales_value += shares_sold * current_price
-
             trade = {'entry': current_price, 'position': action_type, 'lot': self.lot,
                      'SL': current_price + self.loss / 10000,
                      'TP': current_price - self.gain / 10000, 'index': self.number_open_pos}
+            self.number_open_trades += 1
+            self.Open_counter += 1
             self.pos_opened.append(trade)
+
+        elif action_type < 3:
+            i = 0
+            while i < self.number_open_trades:
+                self.gains += (current_price - self.Open_trade[i]['entry']) * 10000
+                if (current_price - self.Open_trade[i]['entry']) > 0:
+                    self.Pos_counter += 1
+                else:
+                    self.Neg_counter += 1
+                del self.Open_trade[i]
+                self.number_open_trades -= 1
+                self.Open_counter -= 1
+                self.Closed_counter += 1
 
         self.netWorth = self.balance + self.shares_held * current_price
 
